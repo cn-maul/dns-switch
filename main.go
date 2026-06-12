@@ -16,13 +16,15 @@ func main() {
 
 	cmd := os.Args[1]
 
+	var err error
 	switch cmd {
 	case "test":
-		testCmd()
+		err = testCmd()
 
 	case "set":
 		if len(os.Args) < 3 {
 			fmt.Fprintln(os.Stderr, "ERR 缺少 DNS 名称参数")
+			usage()
 			os.Exit(1)
 		}
 		primary := os.Args[2]
@@ -30,14 +32,19 @@ func main() {
 		if len(os.Args) >= 4 {
 			secondary = os.Args[3]
 		}
-		setCmd(primary, secondary)
+		err = setCmd(primary, secondary)
 
 	case "restore":
-		restoreCmd()
+		err = restoreCmd()
 
 	default:
 		fmt.Fprintf(os.Stderr, "ERR 未知命令 %q\n", cmd)
 		usage()
+		os.Exit(1)
+	}
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERR %v\n", err)
 		os.Exit(1)
 	}
 }

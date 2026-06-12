@@ -1,4 +1,5 @@
-package main
+// Package bench provides DNS latency benchmarking primitives.
+package bench
 
 import (
 	"context"
@@ -9,6 +10,16 @@ import (
 	"sync"
 	"time"
 )
+
+// Result holds a single DNS server's benchmark result.
+type Result struct {
+	Name   string
+	IP     string
+	AvgRTT float64
+	Loss   int
+	Err    bool
+	ErrMsg string
+}
 
 // probeTarget is the domain name used for DNS resolution benchmarks.
 const probeTarget = "www.baidu.com"
@@ -99,15 +110,15 @@ func benchmarkAll(servers map[string]string, cb onResult) {
 	wg.Wait()
 }
 
-// RunBenchmark benchmarks all servers, collects sorted results, and calls
-// onComplete with the results slice and the index of the best server.
-func RunBenchmark(servers map[string]string, onComplete func([]BenchResult, int)) {
+// Run benchmarks all servers, collects sorted results, and calls
+// onComplete with the results slice and the index of the best result.
+func Run(servers map[string]string, onComplete func([]Result, int)) {
 	var mu sync.Mutex
-	results := make([]BenchResult, 0, len(servers))
+	results := make([]Result, 0, len(servers))
 	bestIdx := -1
 
 	benchmarkAll(servers, func(name, ip string, rttMs float64, err bool, errMsg string) {
-		r := BenchResult{Name: name, IP: ip}
+		r := Result{Name: name, IP: ip}
 		if err {
 			r.Err = true
 			r.ErrMsg = errMsg
@@ -127,7 +138,7 @@ func RunBenchmark(servers map[string]string, onComplete func([]BenchResult, int)
 			}
 			return r.AvgRTT < cr.AvgRTT
 		})
-		results = append(results, BenchResult{})
+		results = append(results, Result{})
 		copy(results[idx+1:], results[idx:])
 		results[idx] = r
 

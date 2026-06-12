@@ -1,4 +1,5 @@
-package main
+// Package config handles TOML configuration file read/write for dns-switch.
+package config
 
 import (
 	"fmt"
@@ -25,15 +26,11 @@ type LastTest struct {
 }
 
 // Backup stores pre-switch state for restore.
-// DNS restoration is handled by the platform backend directly.
 type Backup struct {
 	Backend string `toml:"backend"`
 }
 
 // configDir returns the platform-appropriate config directory for dns-switch.
-//   Linux:   ~/.config/dns-switch/
-//   Windows: %APPDATA%/dns-switch/
-//   macOS:   ~/Library/Application Support/dns-switch/
 func configDir() string {
 	dir, err := os.UserConfigDir()
 	if err != nil {
@@ -42,8 +39,7 @@ func configDir() string {
 	return filepath.Join(dir, "dns-switch")
 }
 
-// configPath returns the canonical config file path per DESIGN.md §2.1.
-// Falls back to "config.toml" (current directory) when UserConfigDir is unavailable.
+// configPath returns the canonical config file path.
 func configPath() string {
 	if dir := configDir(); dir != "" {
 		return filepath.Join(dir, "config.toml")
@@ -61,7 +57,6 @@ func legacyConfigPath() string {
 }
 
 // configRead tries to read and parse config from the given path.
-// Returns nil data on file-not-found without an error.
 func configRead(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -81,40 +76,8 @@ func configRead(path string) (*Config, error) {
 	return cfg, nil
 }
 
-// ReadConfig loads the TOML config from disk.
-// Reads from the canonical path (XDG/APPDATA). If that fails with
-// file-not-found, falls back to the legacy exe-relative path for migration,
-// then silently migrates it to the canonical location.
-// Returns a zero-value Config (with an empty Servers map) when neither exists.
-func ReadConfig() (*Config, error) {
-	// Try canonical path first
-	if cfg, err := configRead(configPath()); err != nil {
-		return nil, err
-	} else if cfg != nil {
-		return cfg, nil
-	}
-
-	// Fallback: try legacy exe-relative path
-	if legacy := legacyConfigPath(); legacy != "" {
-		if cfg, err := configRead(legacy); err != nil {
-			return nil, err
-		} else if cfg != nil {
-			// Silently migrate to new location
-			if writeErr := WriteConfig(cfg); writeErr != nil {
-				// Migration failed — still return the parsed config
-				return cfg, nil
-			}
-			return cfg, nil
-		}
-	}
-
-	// No config found anywhere — return empty default
-	return &Config{Servers: make(map[string]string)}, nil
-}
-
-// WriteConfig serialises cfg and writes it to the config file.
-// Creates the config directory if it does not exist.
-func WriteConfig(cfg *Config) error {
+// write serialises cfg and writes to the config file, creating directories as needed.
+func write(cfg *Config) error {
 	data, err := toml.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("marshal config: %w", err)
@@ -122,7 +85,6 @@ func WriteConfig(cfg *Config) error {
 
 	path := configPath()
 
-	// Ensure directory exists
 	if dir := filepath.Dir(path); dir != "." {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return fmt.Errorf("创建配置目录: %w", err)
@@ -135,9 +97,33 @@ func WriteConfig(cfg *Config) error {
 	return nil
 }
 
+// ── Exported package-level functions ──
+
+// Read loads the TOML config from the canonical path with legacy fallback.
+func Read() (*Config, error) {
+	// Try canonical path first
+	if cfg, err := configRead(configPath()); err != nil {
+		return nil, err
+	} else if cfg != nil {
+		return cfg, nil
+	}
+
+	// Fallback: try legacy exe-relative path (silent migration)
+	if legacy := legacyConfigPath(); legacy != "" {
+		if cfg, err := configRead(legacy); err != nil {
+			return nil, err
+		} else if cfg != nil {
+			_ = write(cfg) // silently migrate
+			return cfg, nil
+		}
+	}
+
+	return &Config{Servers: make(map[string]string)}, nil
+}
+
 // SaveLastTest updates the [last_test] section in the config file.
 func SaveLastTest(optimal string, rttMs float64) error {
-	cfg, err := ReadConfig()
+	cfg, err := Read()
 	if err != nil {
 		return err
 	}
@@ -146,29 +132,27 @@ func SaveLastTest(optimal string, rttMs float64) error {
 		RTTMs:   rttMs,
 		Time:    time.Now().UTC().Format(time.RFC3339),
 	}
-	return WriteConfig(cfg)
+	return write(cfg)
 }
 
 // WriteBackup writes the [backup] section to the config file.
 func WriteBackup(backend string) error {
-	cfg, err := ReadConfig()
+	cfg, err := Read()
 	if err != nil {
 		return err
 	}
-	cfg.Backup = &Backup{
-		Backend: backend,
-	}
-	return WriteConfig(cfg)
+	cfg.Backup = &Backup{Backend: backend}
+	return write(cfg)
 }
 
 // ClearBackup removes the [backup] section from the config file.
 func ClearBackup() error {
-	cfg, err := ReadConfig()
+	cfg, err := Read()
 	if err != nil {
 		return err
 	}
 	cfg.Backup = nil
-	return WriteConfig(cfg)
+	return write(cfg)
 }
 
 // LookupServer performs a case-insensitive lookup of name in servers.

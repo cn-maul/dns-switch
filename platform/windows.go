@@ -22,7 +22,7 @@ func (b *WindowsBackend) Name() string {
 }
 
 // Detect returns the Windows backend.
-func Detect() *WindowsBackend {
+func Detect() Backend {
 	return &WindowsBackend{}
 }
 

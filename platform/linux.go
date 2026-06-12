@@ -29,7 +29,7 @@ func (b *LinuxBackend) Name() string {
 }
 
 // Detect returns the most appropriate Linux backend.
-func Detect() *LinuxBackend {
+func Detect() Backend {
 	b := &LinuxBackend{}
 
 	if _, err := os.Stat("/run/systemd/resolve/stub-resolv.conf"); err == nil {
@@ -146,6 +146,13 @@ func (b *LinuxBackend) nmConnectionName(iface string) (string, error) {
 var resolvConfPath = "/etc/resolv.conf"
 
 func (b *LinuxBackend) setResolvConf(dns ...string) error {
+	// Check if resolv.conf is a symlink managed by systemd-resolved or
+	// NetworkManager. Overwriting it with a plain file would permanently
+	// break the system's DNS resolver.
+	if fi, err := os.Lstat(resolvConfPath); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("%s is a symlink (managed by systemd-resolved or NetworkManager); use resolved or nm backend instead", resolvConfPath)
+	}
+
 	backupPath := resolvConfPath + ".bak"
 	data, err := os.ReadFile(resolvConfPath)
 	if err != nil && !os.IsNotExist(err) {
@@ -163,18 +170,35 @@ func (b *LinuxBackend) setResolvConf(dns ...string) error {
 
 func (b *LinuxBackend) restoreResolvConf() error {
 	backupPath := resolvConfPath + ".bak"
+
+	// Check symlink on restore too
+	if fi, err := os.Lstat(resolvConfPath); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		// Symlink restored via the appropriate backend; cleanup backup and report success
+		os.Remove(backupPath)
+		return nil
+	}
+
 	data, err := os.ReadFile(backupPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// No backup; remove our entry and let DHCP rewrite it
-			return os.Remove(resolvConfPath)
+			return fmt.Errorf("无备份记录，无法恢复 resolv.conf")
 		}
-		return fmt.Errorf("read backup: %w", err)
+		return fmt.Errorf("读取备份: %w", err)
 	}
-	if err := os.WriteFile(resolvConfPath, data, 0o644); err != nil {
-		return fmt.Errorf("restore resolv.conf: %w", err)
+
+	// Write to temp file first, then rename for atomic replacement
+	tmpPath := resolvConfPath + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
+		return fmt.Errorf("写入临时文件: %w", err)
 	}
-	return os.Remove(backupPath)
+	if err := os.Rename(tmpPath, resolvConfPath); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("原子替换 resolv.conf: %w", err)
+	}
+	if err := os.Remove(backupPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("清理备份文件: %w", err)
+	}
+	return nil
 }
 
 // Ensure LinuxBackend implements Backend.
