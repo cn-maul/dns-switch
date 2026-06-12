@@ -12,7 +12,7 @@
 用 PowerShell 执行构建脚本：
 
 ```powershell
-.\build_windows.ps1
+.\scripts\build_windows.ps1
 ```
 
 脚本会自动：

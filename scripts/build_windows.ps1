@@ -1,5 +1,6 @@
 # build_windows.ps1 — DNS-Switch Windows 一键构建脚本
 $ErrorActionPreference = "Stop"
+Set-Location (Split-Path -Parent $PSScriptRoot)
 
 Write-Host "[1/4] 检查 Go 版本..." -ForegroundColor Cyan
 go version

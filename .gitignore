@@ -3,6 +3,9 @@ dns-switch
 dns-switch.exe
 rsrc.syso
 
+# Runtime configuration (user-specific)
+config.toml
+
 # Agent / IDE local caches
 .codegraph/
 .mcp/
