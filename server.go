@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os/exec"
 	"runtime"
+	"sync"
 )
 
 const dashHTML = `<!DOCTYPE html>
@@ -215,9 +216,9 @@ type resultEntry struct {
 func runServer() error {
 	// Initialize currentDNS from config backup state
 	if cfg, err := ReadConfig(); err == nil && cfg.Backup != nil {
-		currentDNS = "已设置（查看备份记录）"
+		state.setCurrentDNS("已设置（查看备份记录）")
 	} else {
-		currentDNS = "DHCP"
+		state.setCurrentDNS("DHCP")
 	}
 
 	http.HandleFunc("/", handleIndex)
@@ -250,13 +251,14 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(statusResponse{Servers: map[string]string{}, Error: err.Error()})
 		return
 	}
+	results, bestIdx := state.getResults()
 	resp := statusResponse{
 		Servers:    cfg.Servers,
-		CurrentDns: currentDNS,
-		Results:    buildResultMap(),
+		CurrentDns: state.getCurrentDNS(),
+		Results:    buildResultMap(results, bestIdx),
 	}
-	if bestIdx >= 0 && bestIdx < len(benchResults) {
-		b := benchResults[bestIdx]
+	if bestIdx >= 0 && bestIdx < len(results) {
+		b := results[bestIdx]
 		resp.BestServer = b.Name
 		resp.BestRtt = b.AvgRTT
 	}
@@ -292,17 +294,16 @@ func handleTest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	RunBenchmark(cfg.Servers, func(results []BenchResult, idx int) {
-		benchResults = results
-		bestIdx = idx
+		state.setResults(results, idx)
 	})
 
-	resp := statusResponse{Servers: cfg.Servers, Results: buildResultMap()}
-	if bestIdx >= 0 && bestIdx < len(benchResults) {
-		b := benchResults[bestIdx]
+	results, bestIdx := state.getResults()
+	resp := statusResponse{Servers: cfg.Servers, Results: buildResultMap(results, bestIdx)}
+	if bestIdx >= 0 && bestIdx < len(results) {
+		b := results[bestIdx]
 		resp.BestServer = b.Name
 		resp.BestRtt = b.AvgRTT
 		if err := SaveLastTest(b.Name, b.AvgRTT); err != nil {
-			// Log but don't fail the response — the benchmark result itself is fine
 			fmt.Printf("ERR save last test: %v\n", err)
 		}
 	}
@@ -346,7 +347,7 @@ func handleSet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	currentDNS = name
+	state.setCurrentDNS(name)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(statusResponse{Ok: true, CurrentDns: name})
 }
@@ -361,18 +362,18 @@ func handleRestore(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(statusResponse{Error: err.Error()})
 		return
 	}
-	currentDNS = "DHCP"
+	state.setCurrentDNS("DHCP")
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(statusResponse{Ok: true})
 }
 
-// buildResultMap converts benchResults into a name-keyed map for JSON responses.
-func buildResultMap() map[string]resultEntry {
-	if len(benchResults) == 0 {
+// buildResultMap converts bench results into a name-keyed map for JSON responses.
+func buildResultMap(results []BenchResult, bestIdx int) map[string]resultEntry {
+	if len(results) == 0 {
 		return nil
 	}
-	m := make(map[string]resultEntry, len(benchResults))
-	for i, r := range benchResults {
+	m := make(map[string]resultEntry, len(results))
+	for i, r := range results {
 		e := resultEntry{Err: r.Err, ErrMsg: r.ErrMsg, Best: i == bestIdx}
 		if !r.Err {
 			e.AvgRtt = r.AvgRTT
@@ -400,9 +401,39 @@ func openBrowser(url string) {
 	exec.Command(cmd, args...).Start() // ignore errors — fallback to manual open
 }
 
-// Package-level state for the server.
-var (
+// serverState holds the mutable server state protected by a mutex.
+// All HTTP handlers run in their own goroutine — without this,
+// concurrent /api/test + /api/status requests cause a data race.
+type serverState struct {
+	mu          sync.RWMutex
 	benchResults []BenchResult
 	bestIdx      int
 	currentDNS   string
-)
+}
+
+func (s *serverState) getResults() ([]BenchResult, int) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.benchResults, s.bestIdx
+}
+
+func (s *serverState) setResults(results []BenchResult, idx int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.benchResults = results
+	s.bestIdx = idx
+}
+
+func (s *serverState) getCurrentDNS() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.currentDNS
+}
+
+func (s *serverState) setCurrentDNS(dns string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.currentDNS = dns
+}
+
+var state serverState

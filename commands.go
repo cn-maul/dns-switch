@@ -131,3 +131,46 @@ func execRestore() error {
 
 	return nil
 }
+
+// ── test (CLI entry) ──
+
+// testCmd 并发测速所有 DNS，出错时退出进程。
+func testCmd() {
+	cfg, err := ReadConfig()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERR 读取配置失败: %v\n", err)
+		os.Exit(1)
+	}
+	if len(cfg.Servers) == 0 {
+		fmt.Fprintln(os.Stderr, "ERR 配置文件中没有定义 DNS 服务器")
+		os.Exit(1)
+	}
+	runTest(cfg)
+}
+
+// runTest 并发测速所有 DNS，收集结果后输出排序表格。
+func runTest(cfg *Config) {
+	RunBenchmark(cfg.Servers, func(results []BenchResult, bestIdx int) {
+		fmt.Printf("%-16s %-16s %8s  %s\n", "名称", "地址", "延迟", "丢包")
+		for _, r := range results {
+			rttStr := fmt.Sprintf("%.1fms", r.AvgRTT)
+			lossStr := fmt.Sprintf("%d%%", r.Loss)
+			if r.Err {
+				rttStr = r.ErrMsg
+				lossStr = "100%"
+			}
+			fmt.Printf("%-16s %-16s %8s  %s\n", r.Name, r.IP, rttStr, lossStr)
+		}
+		fmt.Println("---")
+
+		if bestIdx >= 0 {
+			b := results[bestIdx]
+			fmt.Printf("最优: %s (%s) %.1fms\n", b.Name, b.IP, b.AvgRTT)
+			if err := SaveLastTest(b.Name, b.AvgRTT); err != nil {
+				fmt.Fprintf(os.Stderr, "ERR 保存测速结果失败: %v\n", err)
+			}
+		} else {
+			fmt.Println("所有 DNS 服务器均不可达")
+		}
+	})
+}
