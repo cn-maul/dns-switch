@@ -102,7 +102,7 @@ del rsrc.syso
 ## 常见问题
 
 **Q: 双击后闪退 / 没有窗口出现**  
-A: 因为 `requireAdministrator` + 双击 → UAC 弹窗 → 通过后打开新窗口。如果闪退，可能是当前目录没有 `config.toml`。建议用命令行启动。
+A: 因为 `requireAdministrator` + 双击 → UAC 弹窗 → 通过后打开新窗口。如果闪退，检查 `%APPDATA%\dns-switch\config.toml` 是否存在或是否已配置 DNS 服务器。
 
 **Q: 报 "rsrc 不是可运行的程序"**  
 A: 确认 `$env:USERPROFILE\go\bin` 或 `$env:GOPATH\bin` 在 `PATH` 中。可以手动执行：`go install github.com/akavel/rsrc@latest`
