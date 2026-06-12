@@ -30,33 +30,50 @@ type Backup struct {
 	Backend string `toml:"backend"`
 }
 
-// configPath returns the config file path, relative to the executable directory.
-// Using exe-relative paths ensures the config is found even when UAC elevation
-// changes the working directory (Windows) or when invoked from a different CWD.
+// configDir returns the platform-appropriate config directory for dns-switch.
+//   Linux:   ~/.config/dns-switch/
+//   Windows: %APPDATA%/dns-switch/
+//   macOS:   ~/Library/Application Support/dns-switch/
+func configDir() string {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(dir, "dns-switch")
+}
+
+// configPath returns the canonical config file path per DESIGN.md §2.1.
+// Falls back to "config.toml" (current directory) when UserConfigDir is unavailable.
 func configPath() string {
+	if dir := configDir(); dir != "" {
+		return filepath.Join(dir, "config.toml")
+	}
+	return "config.toml"
+}
+
+// legacyConfigPath returns the old exe-relative config path for migration.
+func legacyConfigPath() string {
 	exe, err := os.Executable()
 	if err != nil {
-		return "config.toml"
+		return ""
 	}
 	return filepath.Join(filepath.Dir(exe), "config.toml")
 }
 
-// ReadConfig loads the TOML config from disk. Returns a zero-value Config
-// (with an empty Servers map) when the file does not exist.
-func ReadConfig() (*Config, error) {
-	cfg := &Config{Servers: make(map[string]string)}
-
-	path := configPath()
+// configRead tries to read and parse config from the given path.
+// Returns nil data on file-not-found without an error.
+func configRead(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return cfg, nil
+			return nil, nil
 		}
-		return nil, fmt.Errorf("打开配置: %w", err)
+		return nil, fmt.Errorf("打开配置 %s: %w", path, err)
 	}
 
+	cfg := &Config{Servers: make(map[string]string)}
 	if err := toml.Unmarshal(data, cfg); err != nil {
-		return nil, fmt.Errorf("解析配置: %w", err)
+		return nil, fmt.Errorf("解析配置 %s: %w", path, err)
 	}
 	if cfg.Servers == nil {
 		cfg.Servers = make(map[string]string)
@@ -64,14 +81,55 @@ func ReadConfig() (*Config, error) {
 	return cfg, nil
 }
 
+// ReadConfig loads the TOML config from disk.
+// Reads from the canonical path (XDG/APPDATA). If that fails with
+// file-not-found, falls back to the legacy exe-relative path for migration,
+// then silently migrates it to the canonical location.
+// Returns a zero-value Config (with an empty Servers map) when neither exists.
+func ReadConfig() (*Config, error) {
+	// Try canonical path first
+	if cfg, err := configRead(configPath()); err != nil {
+		return nil, err
+	} else if cfg != nil {
+		return cfg, nil
+	}
+
+	// Fallback: try legacy exe-relative path
+	if legacy := legacyConfigPath(); legacy != "" {
+		if cfg, err := configRead(legacy); err != nil {
+			return nil, err
+		} else if cfg != nil {
+			// Silently migrate to new location
+			if writeErr := WriteConfig(cfg); writeErr != nil {
+				// Migration failed — still return the parsed config
+				return cfg, nil
+			}
+			return cfg, nil
+		}
+	}
+
+	// No config found anywhere — return empty default
+	return &Config{Servers: make(map[string]string)}, nil
+}
+
 // WriteConfig serialises cfg and writes it to the config file.
+// Creates the config directory if it does not exist.
 func WriteConfig(cfg *Config) error {
 	data, err := toml.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("marshal config: %w", err)
 	}
 
-	if err := os.WriteFile(configPath(), data, 0o644); err != nil {
+	path := configPath()
+
+	// Ensure directory exists
+	if dir := filepath.Dir(path); dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("创建配置目录: %w", err)
+		}
+	}
+
+	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return fmt.Errorf("write config: %w", err)
 	}
 	return nil
