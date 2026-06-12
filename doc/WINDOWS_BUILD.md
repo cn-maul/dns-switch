@@ -46,7 +46,7 @@
 
 因为嵌入了 UAC 清单（`dns-switch.exe.manifest`），Windows 会自动弹出 **用户账户控制 (UAC)** 提权对话框：
 
-- 点击 **"是"** → 以管理员权限启动 → 打开 REPL
+- 点击 **"是"** → 以管理员权限启动 → 打开网页管理面板
 - 点击 **"否"** → 程序拒绝启动
 
 > **注意**：UAC 提权后程序的工作目录可能是 `C:\Windows\System32`，但配置文件现在使用标准路径 `%APPDATA%/dns-switch/config.toml`，所以不受工作目录影响。
