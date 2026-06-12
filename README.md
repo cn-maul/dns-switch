@@ -13,7 +13,7 @@ go build -o dns-switch .
 ./dns-switch
 ```
 
-打开浏览器访问 [http://127.0.0.1:9753](http://127.0.0.1:9753)
+无参数运行将启动桌面 GUI 窗口（基于 Wails v3）。
 
 ## 配置
 
@@ -30,7 +30,7 @@ go build -o dns-switch .
 ## CLI 命令
 
 ```bash
-dns-switch                        # 启动网页管理面板
+dns-switch                        # 启动桌面管理面板
 dns-switch test                    # 测速全部 DNS
 dns-switch set Cloudflare          # 切换到指定 DNS
 dns-switch set Cloudflare 114DNS   # 设置主备 DNS
@@ -40,11 +40,19 @@ dns-switch restore                 # 恢复 DHCP
 ## 构建
 
 ```bash
-# Linux / macOS
-./scripts/build_linux.sh
+# 普通编译（CGO_ENABLED=0）
+CGO_ENABLED=0 go build -ldflags="-s -w" -o dns-switch .
 
-# Windows (PowerShell)
-.\scripts\build_windows.ps1
+# Linux AppImage（自包含 GTK4/WebKitGTK）
+./build/linux/build-appimage.sh
+```
+
+## 开发模式
+
+```bash
+# 需要安装 wails3 CLI
+go install github.com/wailsapp/wails/v3/cmd/wails3@latest
+wails3 dev
 ```
 
 ## 依赖
@@ -57,16 +65,24 @@ dns-switch restore                 # 恢复 DHCP
 
 ```
 dns-switch/
-├── main.go                 入口
-├── commands.go             CLI 命令
-├── server.go               Web 面板入口
+├── main.go                 入口（CLI / GUI 双模式）
+├── app.go                  Wails 桌面应用初始化
+├── commands.go             CLI 命令（test / set / restore）
+├── wails.json              Wails v3 项目配置
+├── frontend/               桌面 GUI 前端 (vanilla HTML+CSS+JS)
+│   ├── index.html
+│   ├── style.css
+│   └── main.js
 ├── internal/
 │   ├── bench/              DNS 测速核心
 │   ├── config/             配置读写
 │   ├── dns/                DNS 切换操作
-│   ├── notify/             通知接口
-│   └── server/             HTTP 管理面板
+│   ├── service/            Wails Service 绑定
+│   └── notify/             通知接口
 ├── platform/               平台适配 (Linux/Windows)
-├── scripts/                构建脚本
+├── build/                  构建脚本
+│   └── linux/
+│       └── build-appimage.sh  AppImage 打包
+├── scripts/                旧版构建脚本
 └── config.example.toml     配置示例
 ```

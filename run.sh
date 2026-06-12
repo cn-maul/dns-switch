@@ -24,5 +24,12 @@ if [ -z "$go_cmd" ]; then
 	exit 1
 fi
 
+# 构建缓存放 /tmp（避免系统分区只读）
+CACHE_DIR="/tmp/dns-switch-build"
+mkdir -p "$CACHE_DIR/go-build" "$CACHE_DIR/gomod" "$CACHE_DIR/gopath"
+export GOCACHE="$CACHE_DIR/go-build"
+export GOMODCACHE="$CACHE_DIR/gomod"
+export GOPATH="$CACHE_DIR/gopath"
+
 "$go_cmd" build -o dns-switch .
 exec ./dns-switch "$@"

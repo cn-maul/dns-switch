@@ -1,0 +1,21 @@
+version: '3'
+
+tasks:
+  default:
+    cmds:
+      - task: build
+
+  build:
+    desc: Build the DNS-Switch application (CGO_ENABLED=0)
+    cmds:
+      - CGO_ENABLED=0 go build -ldflags="-s -w" -o dns-switch .
+
+  dev:
+    desc: Run in development mode with hot-reload
+    cmds:
+      - wails3 dev
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - rm -f dns-switch

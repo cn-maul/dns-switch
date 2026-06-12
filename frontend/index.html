@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DNS-Switch</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<h1>🌐 DNS-Switch</h1>
+<div class="status-bar">
+	<div><span class="label">当前 DNS</span><br><span class="value" id="currentDns">—</span></div>
+	<div><span class="label">最优服务器</span><br><span class="value" id="bestServer">—</span></div>
+	<div><span class="label">延迟</span><br><span class="value" id="bestRtt">—</span></div>
+</div>
+<div class="actions">
+	<button class="btn btn-primary" id="btnTest" onclick="runTest()">📡 全部测速</button>
+	<button class="btn btn-success" id="btnRestore" onclick="restoreDns()">↺ 恢复 DHCP</button>
+</div>
+<table>
+<thead><tr><th>名称</th><th>地址</th><th>延迟</th><th>操作</th></tr></thead>
+<tbody id="serverList"></tbody>
+</table>
+<div id="toast" class="msg"></div>
+<script src="/wails/runtime.js"></script>
+<script src="/main.js"></script>
+</body>
+</html>

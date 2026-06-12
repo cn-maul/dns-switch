@@ -1,0 +1,8 @@
+{
+  "name": "dns-switch",
+  "frontend": {
+    "dir": "./frontend",
+    "build": "",
+    "dev": ""
+  }
+}
