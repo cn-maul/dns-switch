@@ -1,2 +1,5 @@
 dns-switch
 dns-switch.exe
+
+# MCP configuration — env files contain secrets
+.mcp/.env

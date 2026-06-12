@@ -7,7 +7,10 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		usage()
+		if err := runServer(); err != nil {
+			fmt.Fprintf(os.Stderr, "ERR 启动服务器失败: %v\n", err)
+			os.Exit(1)
+		}
 		return
 	}
 
@@ -41,6 +44,7 @@ func main() {
 
 func usage() {
 	fmt.Println(`用法:
+  dns-switch                     启动网页管理面板 (http://127.0.0.1:9753)
   dns-switch test                 测速所有 DNS 服务器并显示延迟排行
   dns-switch set <主DNS> [备DNS]   切换到指定 DNS（可设主备）
   dns-switch restore              恢复网卡为 DHCP 自动获取`)

@@ -103,16 +103,6 @@ func benchmarkAll(servers map[string]string, cb onResult) {
 
 // ── CLI entry (was test.go) ──
 
-// probeResult records a single DNS server's benchmark result.
-type probeResult struct {
-	Name   string
-	IP     string
-	AvgRTT float64
-	Loss   int
-	Err    bool
-	ErrMsg string
-}
-
 // testCmd 并发测速所有 DNS，出错时退出进程。
 func testCmd() {
 	cfg, err := ReadConfig()
@@ -127,14 +117,15 @@ func testCmd() {
 	runTest(cfg)
 }
 
-// runTest 并发测速所有 DNS，收集结果后输出排序表格。
-func runTest(cfg *Config) {
+// RunBenchmark benchmarks all servers, collects sorted results, and calls
+// onComplete with the results slice and the index of the best server.
+func RunBenchmark(servers map[string]string, onComplete func([]BenchResult, int)) {
 	var mu sync.Mutex
-	results := make([]probeResult, 0, len(cfg.Servers))
+	results := make([]BenchResult, 0, len(servers))
 	bestIdx := -1
 
-	progress := func(name, ip string, rttMs float64, err bool, errMsg string) {
-		r := probeResult{Name: name, IP: ip}
+	benchmarkAll(servers, func(name, ip string, rttMs float64, err bool, errMsg string) {
+		r := BenchResult{Name: name, IP: ip}
 		if err {
 			r.Err = true
 			r.ErrMsg = errMsg
@@ -154,7 +145,7 @@ func runTest(cfg *Config) {
 			}
 			return r.AvgRTT < cr.AvgRTT
 		})
-		results = append(results, probeResult{})
+		results = append(results, BenchResult{})
 		copy(results[idx+1:], results[idx:])
 		results[idx] = r
 
@@ -168,29 +159,36 @@ func runTest(cfg *Config) {
 			}
 		}
 		mu.Unlock()
+	})
+
+	if onComplete != nil {
+		onComplete(results, bestIdx)
 	}
+}
 
-	benchmarkAll(cfg.Servers, progress)
-
-	fmt.Printf("%-16s %-16s %8s  %s\n", "名称", "地址", "延迟", "丢包")
-	for _, r := range results {
-		rttStr := fmt.Sprintf("%.1fms", r.AvgRTT)
-		lossStr := fmt.Sprintf("%d%%", r.Loss)
-		if r.Err {
-			rttStr = r.ErrMsg
-			lossStr = "100%"
+// runTest 并发测速所有 DNS，收集结果后输出排序表格。
+func runTest(cfg *Config) {
+	RunBenchmark(cfg.Servers, func(results []BenchResult, bestIdx int) {
+		fmt.Printf("%-16s %-16s %8s  %s\n", "名称", "地址", "延迟", "丢包")
+		for _, r := range results {
+			rttStr := fmt.Sprintf("%.1fms", r.AvgRTT)
+			lossStr := fmt.Sprintf("%d%%", r.Loss)
+			if r.Err {
+				rttStr = r.ErrMsg
+				lossStr = "100%"
+			}
+			fmt.Printf("%-16s %-16s %8s  %s\n", r.Name, r.IP, rttStr, lossStr)
 		}
-		fmt.Printf("%-16s %-16s %8s  %s\n", r.Name, r.IP, rttStr, lossStr)
-	}
-	fmt.Println("---")
+		fmt.Println("---")
 
-	if bestIdx >= 0 {
-		b := results[bestIdx]
-		fmt.Printf("最优: %s (%s) %.1fms\n", b.Name, b.IP, b.AvgRTT)
-		if err := SaveLastTest(b.Name, b.AvgRTT); err != nil {
-			fmt.Fprintf(os.Stderr, "ERR 保存测速结果失败: %v\n", err)
+		if bestIdx >= 0 {
+			b := results[bestIdx]
+			fmt.Printf("最优: %s (%s) %.1fms\n", b.Name, b.IP, b.AvgRTT)
+			if err := SaveLastTest(b.Name, b.AvgRTT); err != nil {
+				fmt.Fprintf(os.Stderr, "ERR 保存测速结果失败: %v\n", err)
+			}
+		} else {
+			fmt.Println("所有 DNS 服务器均不可达")
 		}
-	} else {
-		fmt.Println("所有 DNS 服务器均不可达")
-	}
+	})
 }
