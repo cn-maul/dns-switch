@@ -1,8 +1,18 @@
+# Build artifacts
 dns-switch
 dns-switch.exe
-
-# Windows resource object
 rsrc.syso
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
 
 # MCP configuration — env files contain secrets
 .mcp/.env

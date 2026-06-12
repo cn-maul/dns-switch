@@ -36,10 +36,10 @@
 打开「命令提示符」或「PowerShell」→ 右键 → **"以管理员身份运行"**，然后：
 
 ```powershell
-.\dns-switch.exe            # 进入交互 REPL
-.\dns-switch.exe test        # 测速所有 DNS
-.\dns-switch.exe set Cloudflare  # 切换 DNS
-.\dns-switch.exe restore     # 恢复 DHCP
+.\dns-switch.exe                 # 启动网页管理面板 (http://127.0.0.1:9753)
+.\dns-switch.exe test             # 测速所有 DNS
+.\dns-switch.exe set Cloudflare   # 切换 DNS
+.\dns-switch.exe restore          # 恢复 DHCP
 ```
 
 ### 方法 2：直接双击
@@ -49,7 +49,7 @@
 - 点击 **"是"** → 以管理员权限启动 → 打开 REPL
 - 点击 **"否"** → 程序拒绝启动
 
-> **注意**：UAC 提权后程序的工作目录可能是 `C:\Windows\System32`，此时无法找到同目录下的 `config.toml`。建议通过命令行在 `dns-switch.exe` 所在目录运行。
+> **注意**：UAC 提权后程序的工作目录可能是 `C:\Windows\System32`，但配置文件现在使用标准路径 `%APPDATA%/dns-switch/config.toml`，所以不受工作目录影响。
 
 ---
 
@@ -68,7 +68,9 @@ go build -ldflags "-s -w" -o dns-switch.exe
 del rsrc.syso
 ```
 
-或者提交 `rsrc.syso` 到版本控制，这样 `go build` 可以直接使用，无需 `rsrc`。
+或者将 `rsrc.syso` 提交到版本控制，这样 `go build` 可以直接使用，无需 `rsrc`。
+
+> **注意**：本项目当前将 `rsrc.syso` 加入 `.gitignore`（不追踪），因为它是编译产物。每次构建前需运行 `rsrc` 重新生成。如果希望简化流程，可移除 `.gitignore` 中的 `rsrc.syso` 并提交一次。
 
 ---
 

@@ -1,3 +1,11 @@
+# DNS-Switch 配置文件示例
+# 实际路径（DESIGN.md §2.1）：
+#   Linux:   ~/.config/dns-switch/config.toml
+#   Windows: %APPDATA%/dns-switch/config.toml
+#   macOS:   ~/Library/Application Support/dns-switch/config.toml
+#
+# 首次运行会自动创建目录，旧版（exe-relative）配置自动迁移。
+
 [servers]
 # 国内
 AliDNS      = "223.5.5.5"
