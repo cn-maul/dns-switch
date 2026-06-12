@@ -1,5 +1,8 @@
 dns-switch
 dns-switch.exe
 
+# Windows resource object
+rsrc.syso
+
 # MCP configuration — env files contain secrets
 .mcp/.env

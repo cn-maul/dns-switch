@@ -213,6 +213,13 @@ type resultEntry struct {
 
 // runServer starts the HTTP server and opens the browser.
 func runServer() error {
+	// Initialize currentDNS from config backup state
+	if cfg, err := ReadConfig(); err == nil && cfg.Backup != nil {
+		currentDNS = "已设置（查看备份记录）"
+	} else {
+		currentDNS = "DHCP"
+	}
+
 	http.HandleFunc("/", handleIndex)
 	http.HandleFunc("/api/status", handleStatus)
 	http.HandleFunc("/api/servers", handleServers)
@@ -294,6 +301,10 @@ func handleTest(w http.ResponseWriter, r *http.Request) {
 		b := benchResults[bestIdx]
 		resp.BestServer = b.Name
 		resp.BestRtt = b.AvgRTT
+		if err := SaveLastTest(b.Name, b.AvgRTT); err != nil {
+			// Log but don't fail the response — the benchmark result itself is fine
+			fmt.Printf("ERR save last test: %v\n", err)
+		}
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
