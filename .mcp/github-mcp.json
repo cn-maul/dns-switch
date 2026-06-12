@@ -1,9 +1,0 @@
-{
-  "name": "github",
-  "description": "GitHub MCP Server — 管理 Issues、PR、代码搜索、仓库操作等",
-  "command": "npx",
-  "args": ["-y", "@modelcontextprotocol/server-github"],
-  "env": {
-    "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
-  }
-}

@@ -3,6 +3,12 @@ dns-switch
 dns-switch.exe
 rsrc.syso
 
+# Agent / IDE local caches
+.codegraph/
+.mcp/
+.reasonix/
+reasonix.toml
+
 # IDE / Editor
 .idea/
 .vscode/
@@ -13,6 +19,3 @@ rsrc.syso
 # OS
 .DS_Store
 Thumbs.db
-
-# MCP configuration — env files contain secrets
-.mcp/.env
